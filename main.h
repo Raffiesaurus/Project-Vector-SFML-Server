@@ -1,5 +1,10 @@
 #pragma once
-#include <iostream>
 #include <SFML/Network.hpp>
-class main {};
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+class main {
+
+};
 
