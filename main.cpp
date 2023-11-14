@@ -25,6 +25,11 @@ struct PlayerConnectionDetails {
 	sf::IpAddress ipAddress;
 };
 
+struct PositionData {
+	float x;
+	float y;
+};
+
 int main() {
 
 	PlayerConnectionDetails player1;
@@ -38,6 +43,7 @@ int main() {
 
 	sf::TcpListener listener;
 	sf::UdpSocket udpSocket;
+	udpSocket.setBlocking(false);
 
 	// bind the listener to a port
 	if (listener.listen(port) != sf::Socket::Done) {
@@ -86,8 +92,8 @@ int main() {
 	std::cout << "Ip: " << player1.ipAddress << std::endl;
 	std::cout << "Port: " << player1.port << std::endl << std::endl << std::endl;
 	std::cout << "Player 2: \n";
-	std::cout << "Ip: " << player2.ipAddress;
-	std::cout << "Port: " << player2.port;
+	std::cout << "Ip: " << player2.ipAddress << std::endl;
+	std::cout << "Port: " << player2.port << std::endl;
 
 	char startData[2] = "1";
 
@@ -100,8 +106,42 @@ int main() {
 		// error...
 	}
 
+	std::cout << "Game has begun.\n" << std::endl;
 
 	while (1) {
+
+		/*sf::Packet packet1;
+		if (udpSocket.receive(packet1, player1.ipAddress, player1.port) != sf::Socket::Done) {
+
+		} else {
+			PositionData player1Data;
+			packet1 >> player1Data.x >> player1Data.y;
+			std::cout << "\nData received from player 1: " << player1Data.x << "  " << player1Data.y;
+		}
+
+		sf::Packet packet2;
+		if (udpSocket.receive(packet2, player2.ipAddress, player2.port) != sf::Socket::Done) {
+
+		} else {
+			PositionData player2Data;
+			packet2 >> player2Data.x >> player2Data.y;
+			std::cout << "\nData received from player 2: " << player2Data.x << "  " << player2Data.y;
+		}*/
+
+		sf::Packet packet1;
+		udpSocket.receive(packet1, player1.ipAddress, player1.port);
+		PositionData player1Data;
+		packet1 >> player1Data.x >> player1Data.y;
+		std::cout << "\nData received from player 1: " << player1Data.x << "  " << player1Data.y;
+
+
+		sf::Packet packet2;
+		udpSocket.receive(packet2, player2.ipAddress, player2.port);
+		PositionData player2Data;
+		packet2 >> player2Data.x >> player2Data.y;
+		std::cout << "\nData received from player 2: " << player2Data.x << "  " << player2Data.y;
+
+
 	}
 	//sf::TcpListener listener;
 
