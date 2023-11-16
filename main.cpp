@@ -9,7 +9,6 @@ void parse_config_file(const std::string& filename, std::string& ip, int& port) 
 		if (std::getline(iss, key, '=')) {
 			std::string value;
 			if (std::getline(iss, value)) {
-				// Do something with the key-value pair.
 				if (key == "ip") {
 					ip = value;
 				} else if (key == "port") {
@@ -47,13 +46,15 @@ int main() {
 
 	// bind the listener to a port
 	if (listener.listen(port) != sf::Socket::Done) {
-		// error...
+		std::cerr << "Error listening on TCP port " << port << std::endl;
+		return 1;
 	} else {
 		std::cout << "TCP Listening with port " << port << std::endl;
 	}
 
 	if (udpSocket.bind(port) != sf::Socket::Done) {
-		// error...
+		std::cerr << "Error binding UDP socket to port " << port << std::endl;
+		return 1;
 	} else {
 		std::cout << "UDP Listening with port " << port << std::endl;
 	}
@@ -67,7 +68,7 @@ int main() {
 			if (listener.accept(tcpClient1) != sf::Socket::Done) {
 				// error...
 			} else {
-				std::cout << "First client connected with deets : " << tcpClient1.getLocalPort() << " " << tcpClient1.getRemotePort() << " " << tcpClient1.getRemoteAddress() << std::endl;
+				std::cout << "First client connected." << std::endl;
 				player1.ipAddress = tcpClient1.getRemoteAddress();
 				player1.port = tcpClient1.getRemotePort();
 				playersConnected++;
@@ -76,18 +77,15 @@ int main() {
 			if (listener.accept(tcpClient2) != sf::Socket::Done) {
 				// error...
 			} else {
-				std::cout << "First client connected with deets : " << tcpClient2.getLocalPort() << " " << tcpClient2.getRemotePort() << " " << tcpClient2.getRemoteAddress() << std::endl;
+				std::cout << "Second client connected." << std::endl;
 				player2.ipAddress = tcpClient2.getRemoteAddress();
 				player2.port = tcpClient2.getRemotePort();
 				playersConnected++;
 			}
 		}
-		/*if () {
-			playersConnected--;
-		}*/
 	}
 
-	std::cout << "\n\n\n\n Connection deets: \n\n";
+	std::cout << "\n\n\nConnection deets: \n\n";
 	std::cout << "Player 1: \n";
 	std::cout << "Ip: " << player1.ipAddress << std::endl;
 	std::cout << "Port: " << player1.port << std::endl << std::endl << std::endl;
@@ -97,18 +95,37 @@ int main() {
 
 	char startData[2] = "1";
 
-	// TCP socket:
 	if (tcpClient1.send(startData, 2) != sf::Socket::Done) {
-		// error...
+		std::cerr << "Error sending data to Player 1." << std::endl;
 	}
 
 	if (tcpClient2.send(startData, 2) != sf::Socket::Done) {
-		// error...
+		std::cerr << "Error sending data to Player 2." << std::endl;
 	}
 
-	std::cout << "Game has begun.\n" << std::endl;
+	std::cout << "\n\nGame has begun.\n" << std::endl;
 
+	//sf::SocketSelector selector;
+	//selector.add(udpSocket);
+	sf::Packet packet1;
+	sf::Packet packet2;
 	while (1) {
+
+		//if (selector.wait()) {
+		if (udpSocket.receive(packet1, player1.ipAddress, player1.port) == sf::Socket::Done) {
+			PositionData player1Data;
+			packet1 >> player1Data.x >> player1Data.y;
+			packet1.clear();
+			std::cout << "\nData received from player 1: " << player1Data.x << "  " << player1Data.y;
+		}
+
+		if (udpSocket.receive(packet2, player2.ipAddress, player2.port) == sf::Socket::Done) {
+			PositionData player2Data;
+			packet2 >> player2Data.x >> player2Data.y;
+			packet2.clear();
+			std::cout << "\nData received from player 2: " << player2Data.x << "  " << player2Data.y;
+		}
+		//}
 
 		/*sf::Packet packet1;
 		if (udpSocket.receive(packet1, player1.ipAddress, player1.port) != sf::Socket::Done) {
@@ -128,57 +145,26 @@ int main() {
 			std::cout << "\nData received from player 2: " << player2Data.x << "  " << player2Data.y;
 		}*/
 
-		sf::Packet packet1;
-		udpSocket.receive(packet1, player1.ipAddress, player1.port);
-		PositionData player1Data;
-		packet1 >> player1Data.x >> player1Data.y;
-		std::cout << "\nData received from player 1: " << player1Data.x << "  " << player1Data.y;
+		//sf::Packet packet1;
+		//udpSocket.receive(packet1, player1.ipAddress, player1.port);
+		////if (packet1.getDataSize() > 0) {
+		//PositionData player1Data;
+		//packet1 >> player1Data.x >> player1Data.y;
+		//std::cout << "\nData received from player 1: " << player1Data.x << "  " << player1Data.y;
+		///*} else {
+		//	std::cout << "\n Packet 1 Empty";
+		//}*/
 
-
-		sf::Packet packet2;
-		udpSocket.receive(packet2, player2.ipAddress, player2.port);
-		PositionData player2Data;
-		packet2 >> player2Data.x >> player2Data.y;
-		std::cout << "\nData received from player 2: " << player2Data.x << "  " << player2Data.y;
-
-
+		//sf::Packet packet2;
+		//udpSocket.receive(packet2, player2.ipAddress, player2.port);
+		////if (packet2.getDataSize() > 0) {
+		//PositionData player2Data;
+		//packet2 >> player2Data.x >> player2Data.y;
+		//std::cout << "\nData received from player 2: " << player2Data.x << "  " << player2Data.y;
+		///*} else {
+		//	std::cout << "\n Packet 2 Empty";
+		//}*/
 	}
-	//sf::TcpListener listener;
-
-	//// bind the listener to a port
-	//if (listener.listen(53000) != sf::Socket::Done) {
-	//	// error...
-	//	std::cout << "Error 2";
-	//}
-	//sf::TcpSocket client;
-	//if (listener.accept(client) != sf::Socket::Done) {
-	//	// error...
-	//	std::cout << "Error 3";
-	//}
-
-	//sf::UdpSocket udpSocket;
-
-	//// bind the socket to a port
-	//if (udpSocket.bind(54000) != sf::Socket::Done) {
-	//	// error...
-	//}
-
-
-	//char data[100];
-
-	//// TCP socket:
-	//if (tcpSocket.send(data, 100) != sf::Socket::Done) {
-	//	// error...
-	//	std::cout << "Error 4";
-	//}
-	//std::size_t received;
-
-	//// TCP socket:
-	//if (tcpSocket.receive(data, 100, received) != sf::Socket::Done) {
-	//	// error...
-	//	std::cout << "Error 5";
-	//}
-	//std::cout << "Received " << received << " bytes" << std::endl;
 
 	return 0;
 }
