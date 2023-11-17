@@ -118,25 +118,28 @@ int main() {
 	//selector.add(udpSocket);
 	sf::Packet packet;
 	while (1) {
-		if (udpSocket.receive(packet, player1.ipAddress, player1.port) == sf::Socket::Done) {
+		sf::IpAddress ipAddr;
+		unsigned short port;
+		if (udpSocket.receive(packet, ipAddr, port) == sf::Socket::Done) {
 			PacketData playerData;
 			packet >> playerData.playerNumber >> playerData.spritePosX >> playerData.spritePosY >> playerData.bulletPosX >> playerData.bulletPosY;
 			std::cout << "\nData received from player: " << playerData.playerNumber << " " << playerData.spritePosX << " " << playerData.spritePosY << " " << playerData.bulletPosX << " " << playerData.bulletPosY;
 			packet.clear();
 
-			if (playerData.playerNumber == 1) {
+			if (ipAddr == player1.ipAddress && port == player1.port) {
 				std::cout << " Send to 2\n";
 				sf::Packet sendPacket;
 				sendPacket << playerData.playerNumber << playerData.spritePosX << playerData.spritePosY << playerData.bulletPosX << playerData.bulletPosY;
 				udpSocket.send(sendPacket, player2.ipAddress, player2.port);
 				sendPacket.clear();
-			} else {
+			} else if (ipAddr == player2.ipAddress && port == player2.port) {
 				std::cout << " Send to 1\n";
 				sf::Packet sendPacket;
 				sendPacket << playerData.playerNumber << playerData.spritePosX << playerData.spritePosY << playerData.bulletPosX << playerData.bulletPosY;
 				udpSocket.send(sendPacket, player1.ipAddress, player1.port);
 				sendPacket.clear();
 			}
+
 		}
 	}
 
