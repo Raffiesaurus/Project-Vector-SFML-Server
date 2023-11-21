@@ -1,4 +1,35 @@
 #include "main.h"
+constexpr int TCP_MESSAGE_SIZE = 7;
+constexpr int DC_CHECK_INTERVAL_SECONDS = 2;
+
+struct PacketData {
+	int playerNumber = 0;
+	float spritePosX = 0;
+	float spritePosY = 0;
+	float bulletPosX = 0;
+	float bulletPosY = 0;
+	float rotationAngle;
+	int mHealth = 100;
+	int oHealth = 100;
+};
+
+struct PlayerConnectionDetails {
+	unsigned short port = 0;
+	sf::IpAddress ipAddress;
+	PacketData currentData;
+};
+
+enum NetworkEvent {
+	PlayerOne = 111,
+	PlayerTwo = 222,
+	Win = 333,
+	Lose = 444,
+	PlayOn = 555,
+	GameStart = 666,
+	Hit = 777,
+	Check = 888,
+	Error = -111,
+};
 
 void parse_config_file(const std::string& filename, std::string& ip, int& port) {
 	std::ifstream file(filename);
@@ -19,85 +50,17 @@ void parse_config_file(const std::string& filename, std::string& ip, int& port) 
 	}
 }
 
-struct PacketData {
-	int playerNumber;
-	float spritePosX;
-	float spritePosY;
-	float bulletPosX;
-	float bulletPosY;
-	float rotationAngle;
-	int mHealth = 100;
-	int oHealth = 100;
-};
-
-
-struct PlayerConnectionDetails {
-	unsigned short port = 0;
-	sf::IpAddress ipAddress;
-	PacketData currentData;
-};
-
-//sf::Packet& operator <<(sf::Packet& packet, const PacketData& data) {
-//	return packet << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.health;
-//}
-//
-//sf::Packet& operator >>(sf::Packet& packet, PacketData& data) {
-//	return packet >> data.playerNumber >> data.spritePosX >> data.spritePosY >> data.bulletPosX >> data.bulletPosY >> data.rotationAngle >> data.health;
-//}
-//
-//std::ostream& operator<<(std::ostream& os, const PacketData& data) {
-//	os << data.playerNumber << " " << data.bulletPosX << " " << data.bulletPosY << " " << data.health << " " << data.rotationAngle << " " << data.spritePosX << " " << data.spritePosY << std::endl;
-//	return os;
-//}
-
-bool CheckGameOver(PlayerConnectionDetails* player1, PlayerConnectionDetails* player2, sf::TcpSocket* tcpClient1, sf::TcpSocket* tcpClient2, int* playerCount) {
-	if (player1->currentData.mHealth == 0) {
-		if (tcpClient1->send("lose", 2) != sf::Socket::Done) {
-			std::cerr << "Error sending data to Player 1." << std::endl;
-		}
-		if (tcpClient2->send("win", 2) != sf::Socket::Done) {
-			std::cerr << "Error sending data to Player 2." << std::endl;
-		}
-		tcpClient1->disconnect();
-		tcpClient2->disconnect();
-		playerCount = 0;
-	}
-
-	if (player2->currentData.mHealth == 0) {
-		if (tcpClient2->send("lose", 2) != sf::Socket::Done) {
-			std::cerr << "Error sending data to Player 2." << std::endl;
-		}
-		if (tcpClient1->send("win", 2) != sf::Socket::Done) {
-			std::cerr << "Error sending data to Player 1." << std::endl;
-		}
-		tcpClient1->disconnect();
-		tcpClient2->disconnect();
-		playerCount = 0;
-	}
-
-	return false;
+sf::Packet& operator <<(sf::Packet& packet, const PacketData& data) {
+	return packet << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.mHealth << data.oHealth;;
 }
 
-void CheckDisconnect(sf::TcpSocket* tcpClient1, sf::TcpSocket* tcpClient2, int* playerCount) {
-	bool checkResult = false;
-
-	if (tcpClient1->send("check", 6) == sf::Socket::Disconnected) {
-		checkResult = true;
-		playerCount = 0;
-		if (tcpClient2->send("win", 2) != sf::Socket::Done) {
-			std::cerr << "Error sending data to Player 2." << std::endl;
-		}
-	}
-
-	if (!checkResult && tcpClient2->send("check", 6) == sf::Socket::Disconnected) {
-		checkResult = true;
-		playerCount = 0;
-		if (tcpClient1->send("win", 2) != sf::Socket::Done) {
-			std::cerr << "Error sending data to Player 1." << std::endl;
-		}
-	}
+sf::Packet& operator >>(sf::Packet& packet, PacketData& data) {
+	return packet >> data.playerNumber >> data.spritePosX >> data.spritePosY >> data.bulletPosX >> data.bulletPosY >> data.rotationAngle;
 }
 
+std::ostream& operator<<(std::ostream& os, const PacketData& data) {
+	return os << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.mHealth << data.oHealth;
+}
 
 int main() {
 
@@ -110,10 +73,9 @@ int main() {
 	bool gameBegun = false;
 	bool gameEnded = false;
 
-	char startData[2] = "0";
 	std::string ip = {};
-
-	parse_config_file("net_config.txt", ip, port);
+	std::string netEventData;
+	char const* netEventMessage;
 
 	sf::TcpListener listener;
 
@@ -124,11 +86,16 @@ int main() {
 
 	sf::Packet packet;
 
+
 	auto lastCheckTime = std::chrono::system_clock::now();
 
 	udpSocket.setBlocking(false);
+
+	parse_config_file("net_config.txt", ip, port);
+
 	if (listener.listen(port) != sf::Socket::Done) {
 		std::cerr << "Error listening on TCP port " << port << std::endl;
+		char input = getchar();
 		return 1;
 	} else {
 		std::cout << "TCP Listening with port " << port << std::endl;
@@ -136,39 +103,33 @@ int main() {
 
 	if (udpSocket.bind(port) != sf::Socket::Done) {
 		std::cerr << "Error binding UDP socket to port " << port << std::endl;
+		char input = getchar();
 		return 1;
 	} else {
 		std::cout << "UDP Listening with port " << port << std::endl;
 	}
 
-	std::cout << "\n\n\nConnection details: \n\n";
-	std::cout << "Player 1: \n";
-	std::cout << "Ip: " << player1.ipAddress << std::endl;
-	std::cout << "Port: " << player1.port << std::endl << std::endl << std::endl;
-	std::cout << "Player 2: \n";
-	std::cout << "Ip: " << player2.ipAddress << std::endl;
-	std::cout << "Port: " << player2.port << std::endl;
-
-	std::cout << "\n\nGame has begun.\n" << std::endl;
 
 	while (1) {
 		if (playersConnected < 2 && !gameBegun && !gameEnded) {
-			std::cout << "First initialisation, accepting players.\n";
+			std::cout << "Initialisation, accepting players. Current connected count: " << playersConnected << std::endl;
 			if (tcpClient1.getLocalPort() == 0) {
 				if (listener.accept(tcpClient1) != sf::Socket::Done) {
-					// error...
+					std::cout << "Error accepting client 1.\n";
 				} else {
 					std::cout << "First client connected." << std::endl;
 					player1.ipAddress = tcpClient1.getRemoteAddress();
 					player1.port = tcpClient1.getRemotePort();
-					char data[4];
+					char data[TCP_MESSAGE_SIZE];
 					std::size_t received;
 
-					if (tcpClient1.receive(data, 4, received) != sf::Socket::Done) {
-						// error...
+					if (tcpClient1.receive(data, TCP_MESSAGE_SIZE, received) != sf::Socket::Done) {
+						std::cout << "Error receiving client 1's message.\n";
 					} else {
 						player1.currentData.mHealth = std::stoi(data);
-						if (tcpClient1.send("0", 2) != sf::Socket::Done) {
+						netEventData = std::to_string(NetworkEvent::PlayerOne);
+						netEventMessage = netEventData.c_str();
+						if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 							std::cerr << "Error sending data to Player 1." << std::endl;
 						}
 						playersConnected++;
@@ -176,35 +137,47 @@ int main() {
 				}
 			} else {
 				if (listener.accept(tcpClient2) != sf::Socket::Done) {
-					// error...
+					std::cout << "Error accepting client 2.\n";
 				} else {
 					std::cout << "Second client connected." << std::endl;
 					player2.ipAddress = tcpClient2.getRemoteAddress();
 					player2.port = tcpClient2.getRemotePort();
-					char data[4];
+					char data[TCP_MESSAGE_SIZE];
 					std::size_t received;
 
-					if (tcpClient2.receive(data, 4, received) != sf::Socket::Done) {
-						// error...
+					if (tcpClient2.receive(data, TCP_MESSAGE_SIZE, received) != sf::Socket::Done) {
+						std::cout << "Error receiving client 2's message.\n";
 					} else {
 						player2.currentData.mHealth = std::stoi(data);
-						if (tcpClient2.send("1", 2) != sf::Socket::Done) {
+						netEventData = std::to_string(NetworkEvent::PlayerTwo);
+						netEventMessage = netEventData.c_str();
+						if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 							std::cerr << "Error sending data to Player 2." << std::endl;
 						}
 						playersConnected++;
 					}
 				}
 			}
-			//gameBegun = (playersConnected == 2);
 			if (playersConnected == 2) {
 				gameBegun = true;
-				char startData[2] = "0";
 
-				if (tcpClient1.send(startData, 2) != sf::Socket::Done) {
+				std::cout << "\nConnection details: \n";
+				std::cout << "Player 1: \n";
+				std::cout << "Ip: " << player1.ipAddress << std::endl;
+				std::cout << "Port: " << player1.port << std::endl << std::endl << std::endl;
+				std::cout << "Player 2: \n";
+				std::cout << "Ip: " << player2.ipAddress << std::endl;
+				std::cout << "Port: " << player2.port << std::endl;
+
+				std::cout << "\n\nGame has begun.\n\n";
+
+				netEventData = std::to_string(NetworkEvent::GameStart);
+				netEventMessage = netEventData.c_str();
+				if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 					std::cerr << "Error sending data to Player 1." << std::endl;
 				}
 
-				if (tcpClient2.send(startData, 2) != sf::Socket::Done) {
+				if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 					std::cerr << "Error sending data to Player 2." << std::endl;
 				}
 			}
@@ -212,18 +185,72 @@ int main() {
 			//std::cout << "\nRunning the game.";
 			auto now = std::chrono::system_clock::now();
 			std::chrono::duration<double> elapsed_seconds = now - lastCheckTime;
-			if (elapsed_seconds.count() > 2) {
-				CheckDisconnect(&tcpClient1, &tcpClient2, &playersConnected);
+			if (elapsed_seconds.count() > DC_CHECK_INTERVAL_SECONDS) {
+				lastCheckTime = now;
+				std::cout << "Checking disconnect \n";
+
+				netEventData = std::to_string(NetworkEvent::Check);
+				netEventMessage = netEventData.c_str();
+
+				if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) == sf::Socket::Disconnected) {
+					playersConnected = 0;
+					netEventData = std::to_string(NetworkEvent::Win);
+					netEventMessage = netEventData.c_str();
+					if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
+						std::cerr << "Error sending data to Player 2." << std::endl;
+					}
+				}
+
+				netEventData = std::to_string(NetworkEvent::Check);
+				netEventMessage = netEventData.c_str();
+				if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) == sf::Socket::Disconnected) {
+					playersConnected = 0;
+					netEventData = std::to_string(NetworkEvent::Win);
+					netEventMessage = netEventData.c_str();
+					if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
+						std::cerr << "Error sending data to Player 1." << std::endl;
+					}
+				}
 			}
 
-			gameEnded = CheckGameOver(&player1, &player2, &tcpClient1, &tcpClient2, &playersConnected);
+			if (player1.currentData.mHealth == 0) {
+				gameEnded = true;
+				netEventData = std::to_string(NetworkEvent::Lose);
+				netEventMessage = netEventData.c_str();
+				if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
+					std::cerr << "Error sending data to Player 1." << std::endl;
+				}
+				netEventData = std::to_string(NetworkEvent::Win);
+				netEventMessage = netEventData.c_str();
+				if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
+					std::cerr << "Error sending data to Player 2." << std::endl;
+				}
+				tcpClient1.disconnect();
+				tcpClient2.disconnect();
+				playersConnected = 0;
+			} else if (player2.currentData.mHealth == 0) {
+				gameEnded = true;
+				netEventData = std::to_string(NetworkEvent::Lose);
+				netEventMessage = netEventData.c_str(); 
+				if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
+					std::cerr << "Error sending data to Player 2." << std::endl;
+				}
+				netEventData = std::to_string(NetworkEvent::Win);
+				netEventMessage = netEventData.c_str();
+				if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
+					std::cerr << "Error sending data to Player 1." << std::endl;
+				}
+				tcpClient1.disconnect();
+				tcpClient2.disconnect();
+				playersConnected = 0;
+			}
 
 			sf::IpAddress ipAddr;
 			unsigned short port;
 			if (udpSocket.receive(packet, ipAddr, port) == sf::Socket::Done) {
 				if (packet.getDataSize() > 20) {
 					PacketData recvData;
-					packet >> recvData.playerNumber >> recvData.spritePosX >> recvData.spritePosY >> recvData.bulletPosX >> recvData.bulletPosY >> recvData.rotationAngle;
+					packet >> recvData;
 					packet.clear();
 					if (ipAddr == player1.ipAddress && port == player1.port) {
 						sf::Packet sendPacket;
@@ -233,7 +260,7 @@ int main() {
 						PacketData sendData = recvData;
 						sendData.mHealth = player2.currentData.mHealth;
 						sendData.oHealth = player1.currentData.mHealth;
-						sendPacket << sendData.playerNumber << sendData.spritePosX << sendData.spritePosY << sendData.bulletPosX << sendData.bulletPosY << sendData.rotationAngle << sendData.mHealth << sendData.oHealth;
+						sendPacket << sendData;
 						udpSocket.send(sendPacket, player2.ipAddress, player2.port);
 						sendPacket.clear();
 					} else if (ipAddr == player2.ipAddress && port == player2.port) {
@@ -244,29 +271,34 @@ int main() {
 						PacketData sendData = recvData;
 						sendData.mHealth = player1.currentData.mHealth;
 						sendData.oHealth = player2.currentData.mHealth;
-						sendPacket << sendData.playerNumber << sendData.spritePosX << sendData.spritePosY << sendData.bulletPosX << sendData.bulletPosY << sendData.rotationAngle << sendData.mHealth << sendData.oHealth;;
+						sendPacket << sendData;
 						udpSocket.send(sendPacket, player1.ipAddress, player1.port);
 						sendPacket.clear();
 					}
 				} else {
-					std::cout << packet.getDataSize();
 					packet.clear();
 					if (ipAddr == player1.ipAddress && port == player1.port) {
 						player2.currentData.mHealth -= 20;
-						std::cout << player2.currentData.mHealth << std::endl;
 					} else if (ipAddr == player2.ipAddress && port == player2.port) {
 						player1.currentData.mHealth -= 20;
-						std::cout << player1.currentData.mHealth << std::endl;
 					}
 				}
 			}
-		} else if (playersConnected != 0 && !gameEnded) {
-			std::cout << "Someone disconnected";
-		} else if (playersConnected != 0 && gameEnded) {
-			std::cout << "Someone died";
+		} else if (playersConnected != 2 && gameBegun && !gameEnded) {
+			std::cout << "Someone disconnected. Resetting server. \n";
+			tcpClient1.disconnect();
+			tcpClient2.disconnect();
+			playersConnected = 0;
+			gameBegun = false;
+			gameEnded = false;
+		} else if (gameBegun && gameEnded) {
+			std::cout << "Someone died. Game Over. Resetting server. \n";
+			tcpClient1.disconnect();
+			tcpClient2.disconnect();
+			playersConnected = 0;
+			gameBegun = false;
+			gameEnded = false;
 		}
 	}
 	return 0;
 }
-
-//3538
