@@ -4,13 +4,14 @@ constexpr int DC_CHECK_INTERVAL_SECONDS = 2;
 
 struct PacketData {
 	int playerNumber = 0;
+	int mHealth = 100;
+	int oHealth = 100;
 	float spritePosX = 0;
 	float spritePosY = 0;
 	float bulletPosX = 0;
 	float bulletPosY = 0;
-	float rotationAngle;
-	int mHealth = 100;
-	int oHealth = 100;
+	float rotationAngle = 0;
+	float gameTime = 0;
 };
 
 struct PlayerConnectionDetails {
@@ -51,15 +52,15 @@ void parse_config_file(const std::string& filename, std::string& ip, int& port) 
 }
 
 sf::Packet& operator <<(sf::Packet& packet, const PacketData& data) {
-	return packet << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.mHealth << data.oHealth;;
+	return packet << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.mHealth << data.oHealth << data.gameTime;
 }
 
 sf::Packet& operator >>(sf::Packet& packet, PacketData& data) {
-	return packet >> data.playerNumber >> data.spritePosX >> data.spritePosY >> data.bulletPosX >> data.bulletPosY >> data.rotationAngle;
+	return packet >> data.playerNumber >> data.spritePosX >> data.spritePosY >> data.bulletPosX >> data.bulletPosY >> data.rotationAngle >> data.gameTime;
 }
 
 std::ostream& operator<<(std::ostream& os, const PacketData& data) {
-	return os << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.mHealth << data.oHealth;
+	return os << data.playerNumber << data.spritePosX << data.spritePosY << data.bulletPosX << data.bulletPosY << data.rotationAngle << data.mHealth << data.oHealth << data.gameTime;
 }
 
 int main() {
