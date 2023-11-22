@@ -92,8 +92,8 @@ int main() {
 	udpSocket.setBlocking(false);
 
 	parse_config_file("net_config.txt", ip, port);
-
-	if (listener.listen(port) != sf::Socket::Done) {
+	std::cout << "Server IP: " << ip << " Port: " << port << std::endl;
+	if (listener.listen(port, ip) != sf::Socket::Done) {
 		std::cerr << "Error listening on TCP port " << port << std::endl;
 		char input = getchar();
 		return 1;
@@ -182,34 +182,32 @@ int main() {
 				}
 			}
 		} else if (playersConnected == 2 && gameBegun && !gameEnded) {
-			//std::cout << "\nRunning the game.";
 			auto now = std::chrono::system_clock::now();
 			std::chrono::duration<double> elapsed_seconds = now - lastCheckTime;
 			if (elapsed_seconds.count() > DC_CHECK_INTERVAL_SECONDS) {
 				lastCheckTime = now;
-				std::cout << "Checking disconnect \n";
 
 				netEventData = std::to_string(NetworkEvent::Check);
 				netEventMessage = netEventData.c_str();
 
 				if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) == sf::Socket::Disconnected) {
-					playersConnected = 0;
 					netEventData = std::to_string(NetworkEvent::Win);
 					netEventMessage = netEventData.c_str();
 					if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 						std::cerr << "Error sending data to Player 2." << std::endl;
 					}
+					playersConnected = 0;
 				}
 
 				netEventData = std::to_string(NetworkEvent::Check);
 				netEventMessage = netEventData.c_str();
 				if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) == sf::Socket::Disconnected) {
-					playersConnected = 0;
 					netEventData = std::to_string(NetworkEvent::Win);
 					netEventMessage = netEventData.c_str();
 					if (tcpClient1.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 						std::cerr << "Error sending data to Player 1." << std::endl;
 					}
+					playersConnected = 0;
 				}
 			}
 
