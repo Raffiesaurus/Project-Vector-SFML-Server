@@ -230,7 +230,7 @@ int main() {
 			} else if (player2.currentData.mHealth == 0) {
 				gameEnded = true;
 				netEventData = std::to_string(NetworkEvent::Lose);
-				netEventMessage = netEventData.c_str(); 
+				netEventMessage = netEventData.c_str();
 				if (tcpClient2.send(netEventMessage, TCP_MESSAGE_SIZE) != sf::Socket::Done) {
 					std::cerr << "Error sending data to Player 2." << std::endl;
 				}
@@ -261,7 +261,7 @@ int main() {
 						sendData.oHealth = player1.currentData.mHealth;
 						sendPacket << sendData;
 						udpSocket.send(sendPacket, player2.ipAddress, player2.port);
-						sendPacket.clear();
+						//sendPacket.clear();
 					} else if (ipAddr == player2.ipAddress && port == player2.port) {
 						sf::Packet sendPacket;
 						recvData.mHealth = player2.currentData.mHealth;
@@ -272,7 +272,7 @@ int main() {
 						sendData.oHealth = player2.currentData.mHealth;
 						sendPacket << sendData;
 						udpSocket.send(sendPacket, player1.ipAddress, player1.port);
-						sendPacket.clear();
+						//sendPacket.clear();
 					}
 				} else {
 					packet.clear();
@@ -297,6 +297,9 @@ int main() {
 			playersConnected = 0;
 			gameBegun = false;
 			gameEnded = false;
+			PlayerConnectionDetails newPlayer;
+			player1 = newPlayer;
+			player2 = newPlayer;
 		}
 	}
 	return 0;
